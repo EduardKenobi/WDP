@@ -8,9 +8,122 @@ Funkcie:
 - find_max_years: Nájde rok, v ktorom bol zaznamenaný najvyšší maximálny atribút pre každý mesiac.
 - find_avg_years: Nájde priemer maximálnych hodnôt atribútu a roky výskytov pre jednotlivé mesiace.
 - combine_statistics: Spojí výsledky funkcií find_min_years, find_max_years a find_avg_years do jednej tabuľky.
+- TableFormatter: Trieda na formátovanie tabuliek v PyQt5.
 """
 
 from datetime import datetime
+from PyQt5.QtGui import QFont, QColor
+from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QTableWidget, QHeaderView, QTableWidgetItem
+from constants import EVEN_ROW_COLOR, BLUE_COLOR, GREEN_COLOR, RED_COLOR
+    
+    
+class NumericTableWidgetItem(QTableWidgetItem):
+    def __lt__(self, other):
+        if isinstance(other, QTableWidgetItem):
+            try:
+                return float(self.text()) < float(other.text())
+            except ValueError:
+                return self.text() < other.text()
+        return super().__lt__(other)
+    
+
+class DateTableWidgetItem(QTableWidgetItem):
+    def __init__(self, text):
+        super().__init__(text)
+        self.original_text = text
+        self.unix_timestamp = self.to_unix_timestamp(text)
+        self.display_date = self.to_display_date(text)
+
+    def to_unix_timestamp(self, text):
+        try:
+            date_format = "%d.%m.%Y"
+            if len(text.split('.')) == 2:  # If the date string is missing the year
+                text += '.1900'  # Add a default year to the date string
+            date = datetime.strptime(text, date_format)
+            if date.month >= 10:
+                date = date.replace(year=1975)
+            elif date.month <= 5:
+                date = date.replace(year=1976)
+            if date.year < 1970:
+                return 0
+            return int(date.timestamp())
+        except ValueError as e:
+            print(f"Error parsing date '{text}': {e}")
+            return 0
+
+    def to_display_date(self, text):
+        try:
+            date_format = "%d.%m.%Y"
+            if len(text.split('.')) == 2:  # If the date string is missing the year
+                text += '.1900'  # Add a default year to the date string
+            date = datetime.strptime(text, date_format)
+            return date.strftime("%d.%m.")
+        except ValueError as e:
+            print(f"Error parsing date '{text}': {e}")
+            return text
+
+    def __lt__(self, other):
+        if isinstance(other, QTableWidgetItem):
+            return self.unix_timestamp < other.unix_timestamp
+        return super().__lt__(other)
+
+    def data(self, role):
+        if role == Qt.DisplayRole:
+            return self.display_date  # Display date in DD.MM. format
+        if role == Qt.UserRole:
+            return self.unix_timestamp
+        return super().data(role)
+    
+
+class TableFormatter:
+    def __init__(self, table_widget):
+        self.table_widget = table_widget
+        self.header_font = QFont("Arial", 10, QFont.Bold)
+        self.data_font = QFont("Arial", 8)
+        self.first_column_font = QFont("Arial", 10, QFont.Bold)
+        self.setup_table()
+
+    def setup_table(self):
+        header = self.table_widget.horizontalHeader()
+        header.setDefaultAlignment(Qt.AlignCenter | Qt.AlignVCenter)
+        header.setFont(self.header_font)
+        header.setFixedHeight(50)
+        for col in range(self.table_widget.columnCount()):
+            item = self.table_widget.horizontalHeaderItem(col)
+            item.setFont(self.header_font)
+            item.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
+            item.setToolTip(item.text())
+            header.setSectionResizeMode(col, QHeaderView.ResizeToContents)
+        self.table_widget.setWordWrap(True)
+        self.table_widget.resizeRowsToContents()
+        self.table_widget.setHorizontalScrollMode(QTableWidget.ScrollPerPixel)
+        self.table_widget.setVerticalScrollMode(QTableWidget.ScrollPerPixel)
+        self.table_widget.setSortingEnabled(True)
+
+    def format_item(self, item, is_first_column=False, is_even_row=False):
+        if is_first_column:
+            item.setFont(self.first_column_font)
+            item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        else:
+            item.setFont(self.data_font)
+            item.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
+        if is_even_row:
+            item.setBackground(EVEN_ROW_COLOR)
+        return item
+
+    def format_extreme_item(self, item, row_index):
+        if row_index % 3 == 0:
+            item.setBackground(RED_COLOR)
+        elif row_index % 3 == 1:
+            item.setBackground(GREEN_COLOR)
+        else:
+            item.setBackground(BLUE_COLOR)
+        item.setForeground(QColor(Qt.white))
+        item.setFont(QFont("Arial", 8, QFont.Bold))
+        item.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
+        return item
+    
 
 def convert_to_unix_timestamp(date_str):
     try:

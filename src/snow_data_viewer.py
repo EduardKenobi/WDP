@@ -1,113 +1,10 @@
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, QHeaderView, QHBoxLayout, QLabel, QComboBox, QSizePolicy
-from PyQt5.QtGui import QColor, QFont
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, QHBoxLayout, QLabel, QComboBox, QSizePolicy
+from PyQt5.QtGui import QFont
 from PyQt5.QtCore import Qt
-from datetime import datetime
 import pandas as pd
-from constants import EVEN_ROW_COLOR, BLUE_COLOR, GREEN_COLOR, RED_COLOR  # Use absolute import
-
-class NumericTableWidgetItem(QTableWidgetItem):
-    def __lt__(self, other):
-        if isinstance(other, QTableWidgetItem):
-            try:
-                return float(self.text()) < float(other.text())
-            except ValueError:
-                return self.text() < other.text()
-        return super().__lt__(other)
-
-class DateTableWidgetItem(QTableWidgetItem):
-    def __init__(self, text):
-        super().__init__(text)
-        self.original_text = text
-        self.unix_timestamp = self.to_unix_timestamp(text)
-        self.display_date = self.to_display_date(text)
-
-    def to_unix_timestamp(self, text):
-        try:
-            date_format = "%d.%m.%Y"
-            if len(text.split('.')) == 2:  # If the date string is missing the year
-                text += '.1900'  # Add a default year to the date string
-            date = datetime.strptime(text, date_format)
-            if date.month >= 10:
-                date = date.replace(year=1975)
-            elif date.month <= 5:
-                date = date.replace(year=1976)
-            if date.year < 1970:
-                return 0
-            return int(date.timestamp())
-        except ValueError as e:
-            print(f"Error parsing date '{text}': {e}")
-            return 0
-
-    def to_display_date(self, text):
-        try:
-            date_format = "%d.%m.%Y"
-            if len(text.split('.')) == 2:  # If the date string is missing the year
-                text += '.1900'  # Add a default year to the date string
-            date = datetime.strptime(text, date_format)
-            return date.strftime("%d.%m.")
-        except ValueError as e:
-            print(f"Error parsing date '{text}': {e}")
-            return text
-
-    def __lt__(self, other):
-        if isinstance(other, QTableWidgetItem):
-            return self.unix_timestamp < other.unix_timestamp
-        return super().__lt__(other)
-
-    def data(self, role):
-        if role == Qt.DisplayRole:
-            return self.display_date  # Display date in DD.MM. format
-        if role == Qt.UserRole:
-            return self.unix_timestamp
-        return super().data(role)
-
-class TableFormatter:
-    def __init__(self, table_widget):
-        self.table_widget = table_widget
-        self.header_font = QFont("Arial", 10, QFont.Bold)
-        self.data_font = QFont("Arial", 8)
-        self.first_column_font = QFont("Arial", 10, QFont.Bold)
-        self.setup_table()
-
-    def setup_table(self):
-        header = self.table_widget.horizontalHeader()
-        header.setDefaultAlignment(Qt.AlignCenter | Qt.AlignVCenter)
-        header.setFont(self.header_font)
-        header.setFixedHeight(50)
-        for col in range(self.table_widget.columnCount()):
-            item = self.table_widget.horizontalHeaderItem(col)
-            item.setFont(self.header_font)
-            item.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
-            item.setToolTip(item.text())
-            header.setSectionResizeMode(col, QHeaderView.ResizeToContents)
-        self.table_widget.setWordWrap(True)
-        self.table_widget.resizeRowsToContents()
-        self.table_widget.setHorizontalScrollMode(QTableWidget.ScrollPerPixel)
-        self.table_widget.setVerticalScrollMode(QTableWidget.ScrollPerPixel)
-        self.table_widget.setSortingEnabled(True)
-
-    def format_item(self, item, is_first_column=False, is_even_row=False):
-        if is_first_column:
-            item.setFont(self.first_column_font)
-            item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        else:
-            item.setFont(self.data_font)
-            item.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
-        if is_even_row:
-            item.setBackground(EVEN_ROW_COLOR)
-        return item
-
-    def format_extreme_item(self, item, row_index):
-        if row_index % 3 == 0:
-            item.setBackground(RED_COLOR)
-        elif row_index % 3 == 1:
-            item.setBackground(GREEN_COLOR)
-        else:
-            item.setBackground(BLUE_COLOR)
-        item.setForeground(QColor(Qt.white))
-        item.setFont(QFont("Arial", 8, QFont.Bold))
-        item.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
-        return item
+from constants import LEFT_WIDTH, RIGHT_WIDTH, UPPER_LEFT_HEIGHT, LABEL_HEIGHT
+from tools import TableFormatter, DateTableWidgetItem, NumericTableWidgetItem
+    
 
 class SnowDataViewer(QWidget):
     def __init__(self, snow_data, snow_extremes, csp_statistics, csp_count_statistics, parent):
@@ -115,94 +12,99 @@ class SnowDataViewer(QWidget):
         self.parent = parent
         self.setWindowTitle("Snow Data Viewer")
         self.showMaximized()  # Add this line to start the window maximized
-        self.layout = QHBoxLayout()
-        self.setLayout(self.layout)
 
         # Initialize extremesComboBox before using it
         self.extremesComboBox = QComboBox()
         self.extremesComboBox.addItems(["Zimné obdobie", "Zima"])
         self.extremesComboBox.currentIndexChanged.connect(self.update_season)
 
-        # Vytvorenie tabuľky pre snow_data
+        # Create a table for displaying snow data
         self.tableWidget = QTableWidget()
-        self.tableWidget.setRowCount(len(snow_data))  # Počet riadkov = počet záznamov
-        self.tableWidget.setColumnCount(len(snow_data.columns) + 1)  # +1 pre "Zimne obdobie"
+        self.tableWidget.setRowCount(len(snow_data))
+        self.tableWidget.setColumnCount(len(snow_data.columns) + 1)
         self.tableWidget.setHorizontalHeaderLabels([
             "Zimné\nobdobie","Počet dní\nso SSP", "Max. snehová\npokrývka [cm]",
             "Najdlhšia séria\nso SSP", "Začiatok\nsérie", "Koniec\nsérie",
             "Prvý deň\nso SSP", "Posledný deň\nso SSP",
             "Počet dní\nvybraného obdobia", "Pomer dní\nso SSP [%]", "Pomer najdlhšej\nsérie [%]"
         ])
+        self.tableWidget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
+        # Create a table for displaying snow_extremes
         self.extremesTableWidget = QTableWidget()
-        self.cspStatisticsTableWidget = QTableWidget()
-        self.cspCountStatisticsTableWidget = QTableWidget()
+        self.extremesTableWidget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
+        # Create a table for displaying csp_statistics
+        self.cspStatisticsTableWidget = QTableWidget()
+        self.cspStatisticsTableWidget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.cspStatisticsTableWidget.setHorizontalHeaderLabels([
+            "Mesiac","Minimum", "Rok\nminima", "Priemer", "Maximum", "Rok\nmaxima"
+        ])
+
+        # Create a table for displaying csp_count_statistics
+        self.cspCountStatisticsTableWidget = QTableWidget()
+        self.cspCountStatisticsTableWidget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.cspCountStatisticsTableWidget.setHorizontalHeaderLabels([
+            "Mesiac","Minimum", "Rok\nminima", "Priemer", "Maximum", "Rok\nmaxima"
+        ])
+
+        # Create a label for the cspCountStatisticsTableWidget
+        self.cspCountStatisticsLabel = QLabel("Mesačné štatistiky počtu dní so snehovou pokrývkou")
+        self.cspCountStatisticsLabel.setFont(QFont("Arial", 14, QFont.Bold))
+        self.cspCountStatisticsLabel.setAlignment(Qt.AlignCenter)
+
+        # Create a label for the cspStatisticsTableWidget
+        self.cspStatisticsLabel = QLabel("Mesačné štatistiky max. snehovej pokrývky")
+        self.cspStatisticsLabel.setFont(QFont("Arial", 14, QFont.Bold))
+        self.cspStatisticsLabel.setAlignment(Qt.AlignCenter)
+
+        # Update the data based on the selection in the extremesComboBox
         self.update_data(snow_data, snow_extremes, csp_statistics, csp_count_statistics)
 
-        # Vytvorenie vertikálneho rozloženia pre ľavú časť
+        # Setting the size of the widgets
+        self.adjust_widget_size(self.cspCountStatisticsTableWidget, LEFT_WIDTH, UPPER_LEFT_HEIGHT)
+        self.adjust_widget_size(self.cspStatisticsTableWidget, LEFT_WIDTH, UPPER_LEFT_HEIGHT)
+        self.adjust_widget_size(self.extremesTableWidget, width=RIGHT_WIDTH)
+        self.cspStatisticsLabel.setFixedHeight(LABEL_HEIGHT)
+        self.cspCountStatisticsLabel.setFixedHeight(LABEL_HEIGHT)
+
+        # Create a layout for the SnowDataViewer
+        self.layout = QHBoxLayout()
+        self.setLayout(self.layout)
+
+        # Create a left and right widget
         self.leftWidget = QWidget()
         self.leftLayout = QVBoxLayout()
         self.leftWidget.setLayout(self.leftLayout)
 
-        # Vytvorenie horizontálneho rozloženia pre hornú časť ľavej časti
-        self.upperLeftHorizontalLayout = QHBoxLayout()
+        self.upperLeftHorizontalLayout = QHBoxLayout()  # Create a horizontal layout for the upper left part
 
-        # Vytvorenie layoutu pre labely nad tabuľkami
+        # Create a layout for the labels above the tables
         self.labelsLayout = QHBoxLayout()
         self.labelsLayout.setContentsMargins(0, 0, 0, 0)
+        self.labelsLayout.addWidget(self.cspCountStatisticsLabel)   # Add the table name above the csp_count_statistics table
+        self.labelsLayout.addWidget(self.cspStatisticsLabel)    # Add the table name above the csp_statistics table
+        self.leftLayout.addLayout(self.labelsLayout)    # Add the labels layout to the left layout
+ 
+        self.upperLeftHorizontalLayout.addWidget(self.cspCountStatisticsTableWidget)    # Add the csp_count_statistics table to the upper left part
+        self.upperLeftHorizontalLayout.addWidget(self.cspStatisticsTableWidget)     # Add the csp_statistics table to the upper left part
+        self.leftLayout.addLayout(self.upperLeftHorizontalLayout)       # Add the upper left part to the left layout
+        self.leftLayout.addWidget(self.tableWidget)     # Add the tableWidget to the left layout
 
-        # Pridanie názvu tabuľky nad tabuľku csp_count_statistics
-        self.cspCountStatisticsLabel = QLabel("Mesačné štatistiky počtu dní so snehovou pokrývkou")
-        self.cspCountStatisticsLabel.setFont(QFont("Arial", 14, QFont.Bold))
-        self.cspCountStatisticsLabel.setAlignment(Qt.AlignCenter)
-        self.labelsLayout.addWidget(self.cspCountStatisticsLabel)
-
-        # Pridanie názvu tabuľky nad tabuľku csp_statistics
-        self.cspStatisticsLabel = QLabel("Mesačné štatistiky max. snehovej pokrývky")
-        self.cspStatisticsLabel.setFont(QFont("Arial", 14, QFont.Bold))
-        self.cspStatisticsLabel.setAlignment(Qt.AlignCenter)
-        self.labelsLayout.addWidget(self.cspStatisticsLabel)
-
-        # Pridanie layoutu pre labely do hornej časti
-        self.leftLayout.addLayout(self.labelsLayout)
-        label_height = 30
-        self.cspStatisticsLabel.setFixedHeight(label_height)
-        self.cspCountStatisticsLabel.setFixedHeight(label_height)
-
-        # Pridanie tabuľky csp_count_statistics do hornej časti
-        self.upperLeftHorizontalLayout.addWidget(self.cspCountStatisticsTableWidget)
-
-        # Pridanie tabuľky csp_statistics do hornej časti
-        self.upperLeftHorizontalLayout.addWidget(self.cspStatisticsTableWidget)
-
-        # Pridanie hornej časti do ľavej časti
-        self.leftLayout.addLayout(self.upperLeftHorizontalLayout)
-
-        # Pridanie tabuľky snow_data pod hornú časť
-        self.leftLayout.addWidget(self.tableWidget)
-
-        # Vytvorenie vertikálneho rozloženia pre pravú časť
+        # Create a right widget
         self.rightWidget = QWidget()
         self.rightLayout = QVBoxLayout()
         self.rightWidget.setLayout(self.rightLayout)
 
-        # Pridanie rozklikávacieho zoznamu nad tabuľku snow_extremes
+        # Add the extremesComboBox and the extremesTableWidget to the right layout
         self.rightLayout.addWidget(self.extremesComboBox)
-
         self.rightLayout.addWidget(self.extremesTableWidget)
 
-        # Pridanie ľavej a pravej časti do hlavného rozloženia
+        # Add the left and right widgets to the main layout
         self.layout.addWidget(self.leftWidget)
         self.layout.addWidget(self.rightWidget)
         self.layout.setStretch(0, 1)  # Set stretch factor for left widget
         self.layout.setStretch(1, 1)  # Set stretch factor for right widget
-
-        # Ensure the tables expand to fill the available space
-        self.tableWidget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.extremesTableWidget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.cspStatisticsTableWidget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.cspCountStatisticsTableWidget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
         # Ensure the left and right layouts expand to fill the available space
         self.leftLayout.setStretch(0, 1)
@@ -210,28 +112,17 @@ class SnowDataViewer(QWidget):
         self.rightLayout.setStretch(0, 1)
         self.rightLayout.setStretch(1, 1)
 
-        # Set fixed width for right widget based on the width of the extremesTableWidget
-        right_width = self.extremesTableWidget.horizontalHeader().length()
-        self.extremesTableWidget.setFixedWidth(right_width+30)
-
-        left_width = self.cspStatisticsTableWidget.horizontalHeader().length()
-        self.cspStatisticsTableWidget.setFixedWidth(left_width+140)
-        left_width = self.cspCountStatisticsTableWidget.horizontalHeader().length()
-        self.cspCountStatisticsTableWidget.setFixedWidth(left_width+140)
-
-        upper_left_height = self.cspStatisticsTableWidget.verticalHeader().length()
-        self.cspStatisticsTableWidget.setFixedHeight(upper_left_height+52)
-        upper_left_height = self.cspCountStatisticsTableWidget.verticalHeader().length()
-        self.cspCountStatisticsTableWidget.setFixedHeight(upper_left_height+52)
-
         # Remove fixed width settings for left and right widgets
         self.leftWidget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.rightWidget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
+    # Update the data in the SnowDataViewer
     def update_data(self, snow_data, snow_extremes, csp_statistics, csp_count_statistics):
+        
         self.tableWidget.setRowCount(len(snow_data) + 1)
         table_formatter = TableFormatter(self.tableWidget)
 
+        # Iterate over the rows of snow_data
         for i, (index, row) in enumerate(snow_data.iterrows(), start=1):
             item = QTableWidgetItem(str(index))
             table_formatter.format_item(item, is_first_column=True)
@@ -245,11 +136,13 @@ class SnowDataViewer(QWidget):
                 table_formatter.format_item(item)
                 self.tableWidget.setItem(i, j, item)
 
+        # Resize columns and rows to fit the content
         self.extremesTableWidget.setRowCount(len(snow_extremes))
         self.extremesTableWidget.setColumnCount(3)
         self.extremesTableWidget.setHorizontalHeaderLabels(["Názov extrému", "Hodnota", "Obdobie"])
         table_formatter = TableFormatter(self.extremesTableWidget)
 
+        # Iterate over the items in snow_extremes
         for i, (key, value) in enumerate(snow_extremes.items()):
             item = QTableWidgetItem(key)
             table_formatter.format_item(item, is_first_column=True)
@@ -263,37 +156,46 @@ class SnowDataViewer(QWidget):
                 extremSession = QTableWidgetItem(value["Obdobie"].strftime("%d.%m.%Y") if isinstance(value["Obdobie"], pd.Timestamp) else str(value["Obdobie"]))
             else:
                 extremSession = QTableWidgetItem("-")
-            # table_formatter.format_extreme_item(extremSession, i)
             extremSession.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
             extremSession.setFont(QFont("Arial", 8, QFont.Bold))
             self.extremesTableWidget.setItem(i, 2, extremSession)
 
+        # Resize columns and rows to fit the content
         self.extremesTableWidget.resizeColumnsToContents()
         self.extremesTableWidget.setWordWrap(True)
         self.extremesTableWidget.resizeRowsToContents()
 
+        # Resize columns and rows to fit the content
         self.cspStatisticsTableWidget.setRowCount(len(csp_statistics))
         self.cspStatisticsTableWidget.setColumnCount(len(csp_statistics.columns))
-        self.cspStatisticsTableWidget.setHorizontalHeaderLabels(csp_statistics.columns)
+        self.cspStatisticsTableWidget.setHorizontalHeaderLabels([
+            "Mesiac","Minimum", "Rok\nminima", "Priemer", "Maximum", "Rok\nmaxima"
+        ])
         table_formatter = TableFormatter(self.cspStatisticsTableWidget)
 
+        # Iterate over the rows of csp_statistics
         for i, (index, row) in enumerate(csp_statistics.iterrows()):
             for j, value in enumerate(row):
                 item = QTableWidgetItem(str(value))
                 table_formatter.format_item(item, is_first_column=(j == 0), is_even_row=(i % 2 == 0))
                 self.cspStatisticsTableWidget.setItem(i, j, item)
 
+        # Resize columns and rows to fit the content
         self.cspCountStatisticsTableWidget.setRowCount(len(csp_count_statistics))
         self.cspCountStatisticsTableWidget.setColumnCount(len(csp_count_statistics.columns))
-        self.cspCountStatisticsTableWidget.setHorizontalHeaderLabels(csp_count_statistics.columns)
+        self.cspCountStatisticsTableWidget.setHorizontalHeaderLabels([
+            "Mesiac","Minimum", "Rok\nminima", "Priemer", "Maximum", "Rok\nmaxima"
+        ])
         table_formatter = TableFormatter(self.cspCountStatisticsTableWidget)
 
+        # Iterate over the rows of csp_count_statistics
         for i, (index, row) in enumerate(csp_count_statistics.iterrows()):
             for j, value in enumerate(row):
                 item = QTableWidgetItem(str(value))
                 table_formatter.format_item(item, is_first_column=(j == 0), is_even_row=(i % 2 == 0))
                 self.cspCountStatisticsTableWidget.setItem(i, j, item)
 
+    # Update the season in the SnowDataViewer
     def update_season(self, index):
         # Update the data based on the selection in the extremesComboBox
         season_extremes = self.extremesComboBox.currentText()
@@ -305,3 +207,11 @@ class SnowDataViewer(QWidget):
         else:
             season_extremes = "Zimné\nobdobie"
         self.tableWidget.horizontalHeaderItem(0).setText(season_extremes)
+
+    # Resize the widget to fit the content
+    def adjust_widget_size(self, widget, width=None, height=None):
+        # Resize the widget to fit the content
+        if width is not None:
+            widget.setFixedWidth(widget.horizontalHeader().length() + width)
+        if height is not None:
+            widget.setFixedHeight(widget.verticalHeader().length() + height)
