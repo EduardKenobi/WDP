@@ -11,7 +11,7 @@ class MainWindow(QMainWindow):
     def __init__(self, file_name, station_id):
         super().__init__()
         self.station_id = station_id
-        self.setWindowTitle("Weather Data Viewer")
+        self.setWindowTitle("Weather Data Parse")
         self.showMaximized()
 
         self.tab_widget = QTabWidget()
