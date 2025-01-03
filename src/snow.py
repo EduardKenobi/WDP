@@ -65,7 +65,7 @@ def calculate_snow_data(data, monthly_stats, attribute, condition, season):
     def calculate_ratios(row):
         if pd.isnull(row["Prvy den s podmienkou"]) or pd.isnull(row["Posledny den s podmienkou"]):
             return pd.Series([None, None, None], index=["Celkovy pocet dni", "Ratio dni s podmienkou", "Ratio najdlhsej serie"])
-        total_days = (row["Posledny den s podmienkou"] - row["Prvy den s podmienkou"]).days + 1
+        total_days = (pd.to_datetime(row["Posledny den s podmienkou"], format='%d.%m.%Y') - pd.to_datetime(row["Prvy den s podmienkou"], format='%d.%m.%Y')).days + 1
         ratio_condition_days = (row["Pocet dni so snehom"] / total_days) * 100
         ratio_longest_series = (row["Najdlhsia seria (dni)"] / total_days) * 100
         return pd.Series([total_days, ratio_condition_days, ratio_longest_series], index=["Celkovy pocet dni", "Ratio dni s podmienkou", "Ratio najdlhsej serie"])

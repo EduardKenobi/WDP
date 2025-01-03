@@ -33,14 +33,14 @@ class MainWindow(QMainWindow):
     def update_snow_data_viewer(self, season, data=None):
         if data is None:
             data = self.data
-        snow_data = calculate_snow_data(data, self.monthly_stats, "CSP", 1, season)
-        snow_extremes = calculate_snow_extremes(snow_data, data)
-        csp_statistics = combine_statistics(self.monthly_stats, "CSP_max")
-        csp_count_statistics = combine_statistics(self.monthly_stats, "CSP_count")
+        self.snow_data = calculate_snow_data(data, self.monthly_stats, "CSP", 1, season)
+        self.snow_extremes = calculate_snow_extremes(self.snow_data, data)
+        self.csp_statistics = combine_statistics(self.monthly_stats, "CSP_max")
+        self.csp_count_statistics = combine_statistics(self.monthly_stats, "CSP_count")
         if hasattr(self, 'snow_data_viewer'):
-            self.snow_data_viewer.update_data(snow_data, snow_extremes, csp_statistics, csp_count_statistics)
+            self.snow_data_viewer.update_data(self.snow_data, self.snow_extremes, self.csp_statistics, self.csp_count_statistics)
         else:
-            self.snow_data_viewer = SnowDataViewer(snow_data, snow_extremes, csp_statistics, csp_count_statistics, self)
+            self.snow_data_viewer = SnowDataViewer(self.snow_data, self.snow_extremes, self.csp_statistics, self.csp_count_statistics, self)
             self.tab_widget.addTab(self.snow_data_viewer, "Snow Data Viewer")
 
 if __name__ == "__main__":

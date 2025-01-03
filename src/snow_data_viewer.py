@@ -118,9 +118,44 @@ class SnowDataViewer(QWidget):
 
     # Update the data in the SnowDataViewer
     def update_data(self, snow_data, snow_extremes, csp_statistics, csp_count_statistics):
-        
+        # Save current sorting order
+        sort_column = self.tableWidget.horizontalHeader().sortIndicatorSection()
+        sort_order = self.tableWidget.horizontalHeader().sortIndicatorOrder()
+
+        self.tableWidget.setSortingEnabled(False)
+        self.extremesTableWidget.setSortingEnabled(False)
+        self.cspStatisticsTableWidget.setSortingEnabled(False)
+        self.cspCountStatisticsTableWidget.setSortingEnabled(False)
+
         self.tableWidget.setRowCount(len(snow_data) + 1)
         table_formatter = TableFormatter(self.tableWidget)
+
+        # Clear existing items
+        self.tableWidget.clearContents()
+        self.extremesTableWidget.clearContents()
+        self.cspStatisticsTableWidget.clearContents()
+        self.cspCountStatisticsTableWidget.clearContents()
+
+        # Reset headers
+        self.tableWidget.setHorizontalHeaderLabels([
+            "Zimné\nobdobie","Počet dní\nso SSP", "Max. snehová\npokrývka [cm]",
+            "Najdlhšia séria\nso SSP", "Začiatok\nsérie", "Koniec\nsérie",
+            "Prvý deň\nso SSP", "Posledný deň\nso SSP",
+            "Počet dní\nvybraného obdobia", "Pomer dní\nso SSP [%]", "Pomer najdlhšej\nsérie [%]"
+        ])
+        self.extremesTableWidget.setColumnCount(3)
+        self.extremesTableWidget.setHorizontalHeaderLabels(["Názov extrému", "Hodnota", "Obdobie"])
+        self.cspStatisticsTableWidget.setColumnCount(6)
+        self.cspStatisticsTableWidget.setHorizontalHeaderLabels([
+            "Mesiac","Minimum", "Rok\nminima", "Priemer", "Maximum", "Rok\nmaxima"
+        ])
+        self.cspCountStatisticsTableWidget.setColumnCount(6)
+        self.cspCountStatisticsTableWidget.setHorizontalHeaderLabels([
+            "Mesiac","Minimum", "Rok\nminima", "Priemer", "Maximum", "Rok\nmaxima"
+        ])
+
+        # Reset sorting order
+        self.tableWidget.horizontalHeader().setSortIndicator(-1, Qt.AscendingOrder)
 
         # Iterate over the rows of snow_data
         for i, (index, row) in enumerate(snow_data.iterrows(), start=1):
@@ -138,8 +173,6 @@ class SnowDataViewer(QWidget):
 
         # Resize columns and rows to fit the content
         self.extremesTableWidget.setRowCount(len(snow_extremes))
-        self.extremesTableWidget.setColumnCount(3)
-        self.extremesTableWidget.setHorizontalHeaderLabels(["Názov extrému", "Hodnota", "Obdobie"])
         table_formatter = TableFormatter(self.extremesTableWidget)
 
         # Iterate over the items in snow_extremes
@@ -167,10 +200,6 @@ class SnowDataViewer(QWidget):
 
         # Resize columns and rows to fit the content
         self.cspStatisticsTableWidget.setRowCount(len(csp_statistics))
-        self.cspStatisticsTableWidget.setColumnCount(len(csp_statistics.columns))
-        self.cspStatisticsTableWidget.setHorizontalHeaderLabels([
-            "Mesiac","Minimum", "Rok\nminima", "Priemer", "Maximum", "Rok\nmaxima"
-        ])
         table_formatter = TableFormatter(self.cspStatisticsTableWidget)
 
         # Iterate over the rows of csp_statistics
@@ -182,10 +211,6 @@ class SnowDataViewer(QWidget):
 
         # Resize columns and rows to fit the content
         self.cspCountStatisticsTableWidget.setRowCount(len(csp_count_statistics))
-        self.cspCountStatisticsTableWidget.setColumnCount(len(csp_count_statistics.columns))
-        self.cspCountStatisticsTableWidget.setHorizontalHeaderLabels([
-            "Mesiac","Minimum", "Rok\nminima", "Priemer", "Maximum", "Rok\nmaxima"
-        ])
         table_formatter = TableFormatter(self.cspCountStatisticsTableWidget)
 
         # Iterate over the rows of csp_count_statistics
@@ -194,6 +219,14 @@ class SnowDataViewer(QWidget):
                 item = QTableWidgetItem(str(value))
                 table_formatter.format_item(item, is_first_column=(j == 0), is_even_row=(i % 2 == 0))
                 self.cspCountStatisticsTableWidget.setItem(i, j, item)
+
+        self.tableWidget.setSortingEnabled(True)
+        self.extremesTableWidget.setSortingEnabled(True)
+        self.cspStatisticsTableWidget.setSortingEnabled(True)
+        self.cspCountStatisticsTableWidget.setSortingEnabled(True)
+
+        # Reapply saved sorting order
+        self.tableWidget.sortItems(sort_column, sort_order)
 
     # Update the season in the SnowDataViewer
     def update_season(self, index):
@@ -207,6 +240,8 @@ class SnowDataViewer(QWidget):
         else:
             season_extremes = "Zimné\nobdobie"
         self.tableWidget.horizontalHeaderItem(0).setText(season_extremes)
+        # Call update_data to refresh the table with new data
+        self.update_data(self.parent.snow_data, self.parent.snow_extremes, self.parent.csp_statistics, self.parent.csp_count_statistics)
 
     # Resize the widget to fit the content
     def adjust_widget_size(self, widget, width=None, height=None):

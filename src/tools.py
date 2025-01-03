@@ -91,6 +91,9 @@ class TableFormatter:
         header.setFixedHeight(50)
         for col in range(self.table_widget.columnCount()):
             item = self.table_widget.horizontalHeaderItem(col)
+            if item is None:
+                item = QTableWidgetItem()
+                self.table_widget.setHorizontalHeaderItem(col, item)
             item.setFont(self.header_font)
             item.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
             item.setToolTip(item.text())
