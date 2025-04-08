@@ -52,8 +52,8 @@ def process_data(station_id, data):
 
     # Výpočet štatistík pre každý rok a mesiac
     monthly_stats = station_data.groupby(['Rok', 'Mesiac']).agg({
-        "Tmax": ["min", "max", "mean"],
-        "Tmin": ["min", "max", "mean"],
+        "Tmax": ["min", "max", "mean", ("count35", lambda x: (x >= 35.0).sum()), ("count30", lambda x: (x >= 30.0).sum()), ("count25", lambda x: (x >= 25.0).sum()), ("count0", lambda x: (x <= 0.0).sum()), ("count_10", lambda x: (x <= -10.0).sum())],
+        "Tmin": ["min", "max", "mean", ("count25", lambda x: (x >= 25.0).sum()), ("count20", lambda x: (x >= 20.0).sum()), ("count0", lambda x: (x < 0.0).sum()), ("count_10", lambda x: (x <= -10.0).sum())],
         "Tavg": ["min", "max", "mean"],
         "R": ["max", "count", "sum"],
         "CSP": ["max", "count", "sum"]

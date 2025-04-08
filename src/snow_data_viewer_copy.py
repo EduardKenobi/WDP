@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, QHeaderView, QHBoxLayout, QLabel, QComboBox, QSizePolicy
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, QHeaderView, QHBoxLayout, QLabel, QComboBox, QSizePolicy, QGridLayout
 from PyQt5.QtGui import QColor, QFont
 from PyQt5.QtCore import Qt
 from datetime import datetime
@@ -61,25 +61,36 @@ class DateTableWidgetItem(QTableWidgetItem):
         if role == Qt.UserRole:
             return self.unix_timestamp
         return super().data(role)
+    
 
-class SnowDataViewer(QWidget):
-    def __init__(self, snow_data, snow_extremes, csp_statistics, csp_count_statistics, parent):
+class SnowDataViewerCopy(QWidget):
+    def __init__(self, snow_data, snow_extremes, csp_statistics, csp_count_statistics, frequency_count_coverage, frequency_max_coverage, parent):
         super().__init__()
         self.parent = parent
-        self.setWindowTitle("Snow Data Viewer")
-        self.showMaximized()  # Add this line to start the window maximized
-        self.layout = QHBoxLayout()
+        self.setWindowTitle("Snow Data Viewer Copy")
+        self.showMaximized()
+        self.layout = QGridLayout()
         self.setLayout(self.layout)
 
-        # Initialize extremesComboBox before using it
-        self.extremesComboBox = QComboBox()
-        self.extremesComboBox.addItems(["Zimné obdobie", "Zima"])
-        self.extremesComboBox.currentIndexChanged.connect(self.update_season)
+        self.seasonComboBox = QComboBox()
+        self.seasonComboBox.addItems(["Zimné obdobie", "Zima"])
+        self.seasonComboBox.currentIndexChanged.connect(self.update_season)
 
-        # Vytvorenie tabuľky pre snow_data
+        self.stationComboBox = QComboBox()
+        self.atributeComboBox = QComboBox()
+
+        # Vytvorenie vertikálneho layoutu
+        menu_layout = QVBoxLayout()
+        menu_layout.addWidget(self.seasonComboBox)
+        menu_layout.addWidget(self.stationComboBox)
+        menu_layout.addWidget(self.atributeComboBox)
+
+        menu_widget = QWidget()
+        menu_widget.setLayout(menu_layout)
+
         self.tableWidget = QTableWidget()
-        self.tableWidget.setRowCount(len(snow_data))  # Počet riadkov = počet záznamov
-        self.tableWidget.setColumnCount(len(snow_data.columns) + 1)  # +1 pre "Zimne obdobie"
+        self.tableWidget.setRowCount(len(snow_data))
+        self.tableWidget.setColumnCount(len(snow_data.columns) + 1)
         self.tableWidget.setHorizontalHeaderLabels([
             "Zimné\nobdobie","Počet dní\nso SSP", "Max. snehová\npokrývka [cm]",
             "Najdlhšia séria\nso SSP", "Začiatok\nsérie", "Koniec\nsérie",
@@ -90,98 +101,95 @@ class SnowDataViewer(QWidget):
         self.extremesTableWidget = QTableWidget()
         self.cspStatisticsTableWidget = QTableWidget()
         self.cspCountStatisticsTableWidget = QTableWidget()
+        self.frequencyCountTableWidget = QTableWidget()
+        self.frequencyMaxTableWidget = QTableWidget()
 
-        self.update_data(snow_data, snow_extremes, csp_statistics, csp_count_statistics)
+        table_layout = QVBoxLayout()
+        table_layout.addWidget(self.frequencyCountTableWidget)
+        table_layout.addWidget(self.frequencyMaxTableWidget)
 
-        # Vytvorenie vertikálneho rozloženia pre ľavú časť
-        self.leftWidget = QWidget()
-        self.leftLayout = QVBoxLayout()
-        self.leftWidget.setLayout(self.leftLayout)
+        table_widget = QWidget()
+        table_widget.setLayout(table_layout)
 
-        # Vytvorenie horizontálneho rozloženia pre hornú časť ľavej časti
-        self.upperLeftHorizontalLayout = QHBoxLayout()
+        self.update_data(snow_data, snow_extremes, csp_statistics, csp_count_statistics, frequency_count_coverage, frequency_max_coverage)
 
-        # Vytvorenie layoutu pre labely nad tabuľkami
-        self.labelsLayout = QHBoxLayout()
-        self.labelsLayout.setContentsMargins(0, 0, 0, 0)
-
-        # Pridanie názvu tabuľky nad tabuľku csp_count_statistics
         self.cspCountStatisticsLabel = QLabel("Mesačné štatistiky počtu dní so snehovou pokrývkou")
         self.cspCountStatisticsLabel.setFont(QFont("Arial", 14, QFont.Bold))
         self.cspCountStatisticsLabel.setAlignment(Qt.AlignCenter)
-        self.labelsLayout.addWidget(self.cspCountStatisticsLabel)
 
-        # Pridanie názvu tabuľky nad tabuľku csp_statistics
         self.cspStatisticsLabel = QLabel("Mesačné štatistiky max. snehovej pokrývky")
         self.cspStatisticsLabel.setFont(QFont("Arial", 14, QFont.Bold))
         self.cspStatisticsLabel.setAlignment(Qt.AlignCenter)
-        self.labelsLayout.addWidget(self.cspStatisticsLabel)
 
-        # Pridanie layoutu pre labely do hornej časti
-        self.leftLayout.addLayout(self.labelsLayout)
-        label_height = 30
-        self.cspStatisticsLabel.setFixedHeight(label_height)
-        self.cspCountStatisticsLabel.setFixedHeight(label_height)
+        self.frequencyCountLabel = QLabel("Častosť výskytu snehovej pokrývky")
+        self.frequencyCountLabel.setFont(QFont("Arial", 14, QFont.Bold))
+        self.frequencyCountLabel.setAlignment(Qt.AlignCenter)
 
-        # Pridanie tabuľky csp_count_statistics do hornej časti
-        self.upperLeftHorizontalLayout.addWidget(self.cspCountStatisticsTableWidget)
+        self.layout.addWidget(menu_widget, 0, 0)  # Nultý riadok, prvý stĺpec
+        self.layout.addWidget(QWidget(), 0, 1)  # Nultý riadok, druhý stĺpec (prázdny)
+        self.layout.addWidget(QWidget(), 0, 2)  # Nultý riadok, tretí stĺpec (prázdny)
 
-        # Pridanie tabuľky csp_statistics do hornej časti
-        self.upperLeftHorizontalLayout.addWidget(self.cspStatisticsTableWidget)
+        self.layout.addWidget(self.cspCountStatisticsLabel, 1, 0)  # Prvý riadok, nultý stĺpec
+        self.layout.addWidget(self.cspStatisticsLabel, 1, 1)      # Prvý riadok, prvý stĺpec
+        self.layout.addWidget(self.frequencyCountLabel, 1, 2)  # Prvý riadok, druhý stĺpec (prázdny)
 
-        # Pridanie hornej časti do ľavej časti
-        self.leftLayout.addLayout(self.upperLeftHorizontalLayout)
+        self.layout.addWidget(self.cspCountStatisticsTableWidget, 2, 0)  # Druhý riadok, nultý stĺpec
+        self.layout.addWidget(self.cspStatisticsTableWidget, 2, 1)      # Druhý riadok, prvý stĺpec
+        self.layout.addWidget(table_widget, 2, 2)  # Druhý riadok, druhý stĺpec (prázdny)
 
-        # Pridanie tabuľky snow_data pod hornú časť
-        self.leftLayout.addWidget(self.tableWidget)
+        self.layout.addWidget(self.tableWidget, 3, 0, 1, 2)  # Tretí riadok, nultý a prvý stĺpec (spojenie 2 stĺpcov)
+        self.layout.addWidget(self.extremesTableWidget, 3, 2)  # Tretí riadok, druhý stĺpec
 
-        # Vytvorenie vertikálneho rozloženia pre pravú časť
-        self.rightWidget = QWidget()
-        self.rightLayout = QVBoxLayout()
-        self.rightWidget.setLayout(self.rightLayout)
+        self.layout.setColumnStretch(0, 0)
+        self.layout.setColumnStretch(0, 1)
+        self.layout.setColumnStretch(0, 2)
 
-        # Pridanie rozklikávacieho zoznamu nad tabuľku snow_extremes
-        self.rightLayout.addWidget(self.extremesComboBox)
+        self.layout.setColumnStretch(1, 0)
+        self.layout.setColumnStretch(1, 1)
+        self.layout.setColumnStretch(1, 2)
 
-        self.rightLayout.addWidget(self.extremesTableWidget)
+        self.layout.setColumnStretch(2, 0)
+        self.layout.setColumnStretch(2, 1)
+        self.layout.setColumnStretch(2, 2)
 
-        # Pridanie ľavej a pravej časti do hlavného rozloženia
-        self.layout.addWidget(self.leftWidget)
-        self.layout.addWidget(self.rightWidget)
-        self.layout.setStretch(0, 1)  # Set stretch factor for left widget
-        self.layout.setStretch(1, 1)  # Set stretch factor for right widget
+        self.layout.setRowStretch(2, 0)
+        self.layout.setRowStretch(2, 1)
+        self.layout.setRowStretch(2, 2)
 
-        # Ensure the tables expand to fill the available space
+        self.layout.setRowStretch(3, 0)
+        self.layout.setRowStretch(3, 1)
+        self.layout.setRowStretch(3, 2)
+
         self.tableWidget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.extremesTableWidget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.cspStatisticsTableWidget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.cspCountStatisticsTableWidget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.frequencyCountTableWidget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
-        # Ensure the left and right layouts expand to fill the available space
-        self.leftLayout.setStretch(0, 1)
-        self.leftLayout.setStretch(1, 1)
-        self.rightLayout.setStretch(0, 1)
-        self.rightLayout.setStretch(1, 1)
+    def update_data(self, snow_data, snow_extremes, csp_statistics, csp_count_statistics, frequency_count_coverage, frequency_max_coverage):
 
-        # Set fixed width for right widget based on the width of the extremesTableWidget
-        right_width = self.extremesTableWidget.horizontalHeader().length()
-        self.extremesTableWidget.setFixedWidth(right_width+30)
+        self.frequencyCountTableWidget.setRowCount(len(frequency_count_coverage))
+        self.frequencyCountTableWidget.setColumnCount(len(frequency_count_coverage.columns))
+        self.frequencyCountTableWidget.setHorizontalHeaderLabels(frequency_count_coverage.columns)
+        table_formatter = TableFormatter(self.frequencyCountTableWidget)
 
-        left_width = self.cspStatisticsTableWidget.horizontalHeader().length()
-        self.cspStatisticsTableWidget.setFixedWidth(left_width+140)
-        left_width = self.cspCountStatisticsTableWidget.horizontalHeader().length()
-        self.cspCountStatisticsTableWidget.setFixedWidth(left_width+140)
+        for i, (index, row) in enumerate(frequency_count_coverage.iterrows()):
+            for j, value in enumerate(row):
+                item = QTableWidgetItem(str(value))
+                table_formatter.format_item(item, is_first_column=(j == 0))
+                self.frequencyCountTableWidget.setItem(i, j, item)
 
-        upper_left_height = self.cspStatisticsTableWidget.verticalHeader().length()
-        self.cspStatisticsTableWidget.setFixedHeight(upper_left_height+52)
-        upper_left_height = self.cspCountStatisticsTableWidget.verticalHeader().length()
-        self.cspCountStatisticsTableWidget.setFixedHeight(upper_left_height+52)
+        self.frequencyMaxTableWidget.setRowCount(len(frequency_max_coverage))
+        self.frequencyMaxTableWidget.setColumnCount(len(frequency_max_coverage.columns))
+        self.frequencyMaxTableWidget.setHorizontalHeaderLabels(frequency_max_coverage.columns)
+        table_formatter = TableFormatter(self.frequencyMaxTableWidget)
 
-        # Remove fixed width settings for left and right widgets
-        self.leftWidget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.rightWidget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        for i, (index, row) in enumerate(frequency_max_coverage.iterrows()):
+            for j, value in enumerate(row):
+                item = QTableWidgetItem(str(value))
+                table_formatter.format_item(item, is_first_column=(j == 0))
+                self.frequencyMaxTableWidget.setItem(i, j, item)
 
-    def update_data(self, snow_data, snow_extremes, csp_statistics, csp_count_statistics):
         self.tableWidget.setRowCount(len(snow_data) + 1)
         table_formatter = TableFormatter(self.tableWidget)
 
@@ -248,12 +256,12 @@ class SnowDataViewer(QWidget):
                 self.cspCountStatisticsTableWidget.setItem(i, j, item)
 
     def update_season(self, index):
-        # Update the data based on the selection in the extremesComboBox
-        season_extremes = self.extremesComboBox.currentText()
+        # Update the data based on the selection in the seasonComboBox
+        season_extremes = self.seasonComboBox.currentText()
         self.parent.update_snow_data_viewer(season_extremes, self.parent.data)
-        if self.extremesComboBox.currentText() == "Zima":
+        if self.seasonComboBox.currentText() == "Zima":
             season_extremes = "Zima"
-        elif self.extremesComboBox.currentText() == "Zimné obdobie":
+        elif self.seasonComboBox.currentText() == "Zimné obdobie":
             season_extremes = "Zimné\nobdobie"
         else:
             season_extremes = "Zimné\nobdobie"

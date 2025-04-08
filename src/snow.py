@@ -8,7 +8,7 @@ Funkcie:
 
 import pandas as pd
 from tools import convert_from_unix_timestamp, convert_to_unix_timestamp, find_longest_series, find_first_and_last_condition
-
+from constants import SEASONS, WHOLE_YEAR
 
 def calculate_snow_data(data, monthly_stats, attribute, condition, season):
     # Zabezpečenie, že 'Datum' je datetime
@@ -167,3 +167,66 @@ def calculate_snow_extremes(snow_data, data):
     snow_extremes["Priemer maximálnych snehových pokrývok"]["Hodnota"] = int(snow_data["Max snehova pokryvka"].mean())
 
     return snow_extremes
+
+
+def create_snow_coverage_frequency_table(monthly_stats, season):
+    intervals_depth = ["0 cm", "1-10 cm", "11-20 cm", "21-40 cm", "41-60 cm", "61-80 cm", "80+ cm"]
+    intervals_count = ["0 dní", "1-5 dní", "6-13 dní", "14-21 dní", "22-27 dní", "28+ dní"]
+
+    months = SEASONS[season]
+    max_value = monthly_stats["CSP_max"].max()
+
+    frequency_count_table = pd.DataFrame(0, index=intervals_count, columns=months)
+
+    for month in months:
+        month_data = monthly_stats[monthly_stats["Mesiac"] == month]
+        for value in month_data["CSP_count"]:
+            if value == 0:
+                frequency_count_table.at["0 dní", month] += 1
+            elif 1 <= value <= 5:
+                frequency_count_table.at["1-5 dní", month] += 1
+            elif 6 <= value <= 13:
+                frequency_count_table.at["6-13 dní", month] += 1
+            elif 14 <= value <= 21:
+                frequency_count_table.at["14-21 dní", month] += 1
+            elif 22 <= value <= 27:
+                frequency_count_table.at["22-27 dní", month] += 1
+            else:
+                frequency_count_table.at["28+ dní", month] += 1
+
+    month_names = {month: WHOLE_YEAR[month] for month in months}
+
+    frequency_count_table.rename(columns=month_names, inplace=True)
+    frequency_count_table.insert(0, "Interval", intervals_count)
+
+    frequency_max_table = pd.DataFrame(0, index=intervals_depth, columns=months)
+
+    for month in months:
+        month_data = monthly_stats[monthly_stats["Mesiac"] == month]
+        for value in month_data["CSP_max"]:
+            if value == 0:
+                frequency_max_table.at["0 cm", month] += 1
+            elif 1 <= value <= 10:
+                frequency_max_table.at["1-10 cm", month] += 1
+            elif 11 <= value <= 20:
+                frequency_max_table.at["11-20 cm", month] += 1
+            elif 21 <= value <= 40:
+                frequency_max_table.at["21-40 cm", month] += 1
+            elif 41 <= value <= 60:
+                frequency_max_table.at["41-60 cm", month] += 1
+            elif 61 <= value <= 80:
+                frequency_max_table.at["61-80 cm", month] += 1
+            else:
+                frequency_max_table.at["80+ cm", month] += 1
+
+    frequency_max_table.rename(columns=month_names, inplace=True)
+    frequency_max_table.insert(0, "Interval", intervals_depth)
+
+    print("Absolútna častosť maximálnych výšok snehovej pokrývky:")
+    print(frequency_max_table)
+
+    print("Absolútna častosť počtu dní so snehovou pokrývkou:")
+    print(frequency_count_table)
+
+    return frequency_count_table, frequency_max_table
+
