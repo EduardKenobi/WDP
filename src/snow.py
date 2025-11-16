@@ -9,6 +9,7 @@ Funkcie:
 import pandas as pd
 from tools import convert_from_unix_timestamp, convert_to_unix_timestamp, find_longest_series, find_first_and_last_condition
 from constants import SEASONS, WHOLE_YEAR
+from datetime import datetime
 
 def calculate_snow_data(data, monthly_stats, attribute, condition, season):
     # Zabezpečenie, že 'Datum' je datetime
@@ -45,7 +46,7 @@ def calculate_snow_data(data, monthly_stats, attribute, condition, season):
     )
     # Odstránenie prvého zimného obdobia 1950/1951
     snow_data = snow_data[snow_data.index != "1950/1951"]
-    snow_data["Max snehova pokryvka"] = snow_data["Max snehova pokryvka"].round().astype(int)
+    snow_data["Max snehova pokryvka"] = snow_data["Max snehova pokryvka"].round().astype('Int64')
 
     series_data = (
         filtered_data.groupby("Zimne obdobie")
@@ -53,6 +54,7 @@ def calculate_snow_data(data, monthly_stats, attribute, condition, season):
         .apply(pd.Series)
         .rename(columns={0: "Najdlhsia seria (dni)", 1: "Zaciatok serie", 2: "Koniec serie"})
     )
+    series_data["Najdlhsia seria (dni)"] = series_data["Najdlhsia seria (dni)"].astype('Int64')
 
     first_last_condition_data = (
         filtered_data.groupby("Zimne obdobie")
@@ -63,9 +65,11 @@ def calculate_snow_data(data, monthly_stats, attribute, condition, season):
 
     # Výpočet celkového počtu dní, a pomerov
     def calculate_ratios(row):
-        if pd.isnull(row["Prvy den s podmienkou"]) or pd.isnull(row["Posledny den s podmienkou"]):
+        prvy_den = pd.to_datetime(row["Prvy den s podmienkou"], errors='coerce')
+        posledny_den = pd.to_datetime(row["Posledny den s podmienkou"], errors='coerce')
+        if pd.isnull(prvy_den) or pd.isnull(posledny_den):
             return pd.Series([None, None, None], index=["Celkovy pocet dni", "Ratio dni s podmienkou", "Ratio najdlhsej serie"])
-        total_days = (row["Posledny den s podmienkou"] - row["Prvy den s podmienkou"]).days + 1
+        total_days = (posledny_den - prvy_den).days + 1
         ratio_condition_days = (row["Pocet dni so snehom"] / total_days) * 100
         ratio_longest_series = (row["Najdlhsia seria (dni)"] / total_days) * 100
         return pd.Series([total_days, ratio_condition_days, ratio_longest_series], index=["Celkovy pocet dni", "Ratio dni s podmienkou", "Ratio najdlhsej serie"])
@@ -73,15 +77,16 @@ def calculate_snow_data(data, monthly_stats, attribute, condition, season):
     snow_data_with_dates = snow_data.join(series_data).join(first_last_condition_data)
     ratio_data = snow_data_with_dates.apply(calculate_ratios, axis=1)
 
-    ratio_data["Celkovy pocet dni"] = ratio_data["Celkovy pocet dni"].round().astype(int)
     ratio_data["Ratio dni s podmienkou"] = ratio_data["Ratio dni s podmienkou"].round(2)
     ratio_data["Ratio najdlhsej serie"] = ratio_data["Ratio najdlhsej serie"].round(2)
 
     snow_data_with_ratios = snow_data_with_dates.join(ratio_data)
 
     # Formátovanie dátumov
-    snow_data_with_ratios["Prvy den s podmienkou"] = snow_data_with_ratios["Prvy den s podmienkou"].dt.strftime("%d.%m.%Y")
-    snow_data_with_ratios["Posledny den s podmienkou"] = snow_data_with_ratios["Posledny den s podmienkou"].dt.strftime("%d.%m.%Y")
+    snow_data_with_ratios["Prvy den s podmienkou"] = pd.to_datetime(snow_data_with_ratios["Prvy den s podmienkou"], errors='coerce')
+    snow_data_with_ratios["Posledny den s podmienkou"] = pd.to_datetime(snow_data_with_ratios["Posledny den s podmienkou"], errors='coerce')
+    snow_data_with_ratios["Prvy den s podmienkou"] = snow_data_with_ratios["Prvy den s podmienkou"].dt.strftime("%d.%m.%Y").fillna("")
+    snow_data_with_ratios["Posledny den s podmienkou"] = snow_data_with_ratios["Posledny den s podmienkou"].dt.strftime("%d.%m.%Y").fillna("")
 
     print(snow_data_with_ratios)
 
@@ -89,6 +94,23 @@ def calculate_snow_data(data, monthly_stats, attribute, condition, season):
 
 
 def calculate_snow_extremes(snow_data, data):
+
+    current_date = datetime.now()
+    current_year = current_date.year
+    current_month = current_date.month
+
+    if current_month >= 10:
+        current_season = f"{current_year}/{current_year + 1}"
+    else:
+        current_season = f"{current_year - 1}/{current_year}"
+
+    if current_season in snow_data.index:
+        snow_days_current_season = snow_data.loc[current_season, "Pocet dni so snehom"]
+        season_end_year = int(current_season.split('/')[1])
+        season_is_over = current_year > season_end_year or (current_year == season_end_year and current_month > 5)
+
+        if not season_is_over and snow_days_current_season == 0:
+            snow_data = snow_data.drop(current_season)
 
     snow_extremes = {
         "Najneskorší výskyt prvej SSP": {"Hodnota": None, "Obdobie": None},
@@ -109,14 +131,18 @@ def calculate_snow_extremes(snow_data, data):
     }
 
     def find_extreme_date(date_series, find_min=True):
-        timestamps = date_series.apply(convert_to_unix_timestamp)
+        timestamps = date_series.apply(convert_to_unix_timestamp).dropna()
+        if timestamps.empty:
+            return None, None
         extreme_timestamp = timestamps.min() if find_min else timestamps.max()
         extreme_date = convert_from_unix_timestamp(extreme_timestamp)
         extreme_index = timestamps.idxmin() if find_min else timestamps.idxmax()
         return extreme_date, extreme_index
 
     def calculate_average_date(date_series):
-        timestamps = date_series.apply(convert_to_unix_timestamp)
+        timestamps = date_series.apply(convert_to_unix_timestamp).dropna()
+        if timestamps.empty:
+            return None
         average_timestamp = timestamps.mean()
         average_date = convert_from_unix_timestamp(average_timestamp)
         return average_date

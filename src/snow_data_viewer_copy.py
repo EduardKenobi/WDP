@@ -23,6 +23,8 @@ class DateTableWidgetItem(QTableWidgetItem):
         self.display_date = self.to_display_date(text)
 
     def to_unix_timestamp(self, text):
+        if not text or text == 'nan':
+            return 0
         try:
             date_format = "%d.%m.%Y"
             if len(text.split('.')) == 2:  # If the date string is missing the year
@@ -40,6 +42,8 @@ class DateTableWidgetItem(QTableWidgetItem):
             return 0
 
     def to_display_date(self, text):
+        if not text or text == 'nan':
+            return "-"
         try:
             date_format = "%d.%m.%Y"
             if len(text.split('.')) == 2:  # If the date string is missing the year
@@ -199,10 +203,31 @@ class SnowDataViewerCopy(QWidget):
             self.tableWidget.setItem(i, 0, item)
 
             for j, value in enumerate(row, start=1):
-                if j in [4, 5, 6, 7]:
-                    item = DateTableWidgetItem(str(value))
-                else:
-                    item = NumericTableWidgetItem(str(value))
+                display_text = str(value)
+                if j in [4, 5, 6, 7]: # Date columns
+                    item = DateTableWidgetItem(display_text)
+                else: # Numeric columns
+                    if display_text == '<NA>':
+                        display_text = '0'
+                    elif display_text == 'nan':
+                        display_text = '-'
+                    elif j == 8: # Počet dní vybraného obdobia
+                        if value is not None and str(value).lower() != 'nan':
+                            try:
+                                display_text = str(int(float(value)))
+                            except (ValueError, TypeError):
+                                display_text = '-'
+                        else:
+                            display_text = '-'
+                    elif j == 9 or j == 10: # Pomer columns
+                        if value is not None and str(value).lower() != 'nan':
+                            try:
+                                display_text = f"{float(value):.2f}"
+                            except (ValueError, TypeError):
+                                display_text = '-'
+                        else:
+                            display_text = '-'
+                    item = NumericTableWidgetItem(display_text)
                 table_formatter.format_item(item)
                 self.tableWidget.setItem(i, j, item)
 

@@ -11,8 +11,11 @@ Funkcie:
 """
 
 from datetime import datetime
+import numpy as np
 
 def convert_to_unix_timestamp(date_str):
+    if not isinstance(date_str, str) or date_str == 'nan' or date_str == '':
+        return np.nan
     try:
         date_format = "%d.%m.%Y"
         date = datetime.strptime(date_str, date_format)
@@ -23,7 +26,7 @@ def convert_to_unix_timestamp(date_str):
         return int(date.timestamp())
     except ValueError as e:
         print(f"Error parsing date '{date_str}': {e}")
-        return 0
+        return np.nan
 
 def convert_from_unix_timestamp(timestamp):
     date = datetime.fromtimestamp(timestamp)
@@ -35,8 +38,8 @@ def find_longest_series(group, attribute, condition):
     group["HasCondition"] = group[attribute] >= condition
     group["ConditionGroup"] = (group["HasCondition"] != group["HasCondition"].shift()).cumsum()
     condition_series = group[group["HasCondition"]].groupby("ConditionGroup")["Datum"]
-    if not condition_series.size:  # Ak nie je séria, vrátime None hodnoty
-        return 0, None, None
+    if condition_series.ngroups == 0:  # Ak nie je séria, vrátime None hodnoty
+        return np.nan, None, None
     longest_series = condition_series.apply(len).idxmax()  # Index najdlhšej série
     start_date = condition_series.get_group(longest_series).min().strftime("%d.%m.%Y")
     end_date = condition_series.get_group(longest_series).max().strftime("%d.%m.%Y")
